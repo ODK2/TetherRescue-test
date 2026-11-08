@@ -1,16 +1,17 @@
 <!-- 1단계 바다 씬 (뼈대)
      좌표: x=-25(해안 쪽) ~ +25(먼바다), y=-25 ~ +25, 정지 수면 z=0
      hfield 높이 = data(0~1) * elevation + geom pos z
-       water  : elevation 1.0, pos z -0.5  → data 0.5 가 정지 수면 (±0.5m 표현)
+       water  : data 0.5 가 정지 수면. 아래 elevation/pos 는 기본값일 뿐이고,
+                실행 시 WaterSurface 가 파도 최대 높이에 맞춰 덮어쓴다 (±R, R = Σ진폭 × 1.05)
        seabed : elevation 6.0, pos z -6.0  → data 0 이 수심 6m
      hfield data는 런타임에 Python에서 채운다 (sim/water_surface.py, ocean/bathymetry.py).
-     nrow/ncol 은 config/ocean.yaml 의 surface_res 와 맞춘다. -->
+     size(x,y) 와 water nrow/ncol 은 World(ocean=cfg) 가 config/ocean.yaml 값으로 덮어쓴다 (MjSpec). -->
 <mujoco model="ocean">
   <option timestep="0.002" integrator="implicitfast"/>
 
   <visual>
     <global offwidth="1280" offheight="720"/>
-    <headlight ambient="0.35 0.35 0.35" diffuse="0.6 0.6 0.6"/>
+    <headlight ambient="0.3 0.3 0.3" diffuse="0.15 0.15 0.15" specular="0 0 0"/>
     <quality shadowsize="2048"/>
   </visual>
 
@@ -24,7 +25,8 @@
   </asset>
 
   <worldbody>
-    <light name="sun" pos="0 0 30" dir="0 0.3 -1" directional="true" diffuse="0.7 0.7 0.7"/>
+    <!-- 낮은 각도의 햇빛: 파도 경사면에 명암이 생겨야 높이 변화가 눈에 보인다 -->
+    <light name="sun" pos="0 0 30" dir="-0.6 0.35 -0.7" directional="true" diffuse="0.8 0.8 0.8" specular="0.4 0.4 0.4"/>
     <geom name="seabed" type="hfield" hfield="seabed" pos="0 0 -6.0" material="seabed"/>
     <!-- 수면은 시각 전용: 충돌 없음 -->
     <geom name="water" type="hfield" hfield="water" pos="0 0 -0.5" material="water"

@@ -6,6 +6,7 @@ from rescue_sim import CONFIG_DIR
 from rescue_sim.ocean import OceanConfig, WaveField
 from rescue_sim.ocean.spectrum import dispersion_k, jonswap, sample_components
 from rescue_sim.sim import World
+from rescue_sim.sim.water_surface import WaterSurface
 
 
 def test_config_loads_presets():
@@ -65,6 +66,68 @@ def test_elevation_vectorized(wave_cfg):
     assert eta.shape == x.shape
     loop = np.array([[wf.elevation(x[i, j], y[i, j], 1.23) for j in range(7)] for i in range(5)])
     np.testing.assert_allclose(eta, loop, rtol=1e-12, atol=1e-14)
+
+
+def test_fixed_points_matches_elevation(wave_cfg):
+    """격자 전용 빠른 계산기 = elevation() 결과와 동일."""
+    wf = WaveField(wave_cfg)
+    x, y = np.meshgrid(np.linspace(-25, 25, 9), np.linspace(-25, 25, 6))
+    fast = wf.fixed_points(x, y)
+    for t in [0.0, 3.7, 125.0]:
+        np.testing.assert_allclose(fast.at(t), wf.elevation(x, y, t), atol=1e-12)
+
+
+def test_world_uses_yaml_resolution():
+    """yaml 의 surface_res / 영역 크기가 MuJoCo 모델에 반영된다 (MjSpec)."""
+    cfg = OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml")
+    cfg.domain.surface_res = 40
+    cfg.domain.size_x = 60.0
+    m = World(ocean=cfg).model
+    h = m.hfield("water").id
+    assert m.hfield_nrow[h] == m.hfield_ncol[h] == 40
+    assert m.hfield_size[h, 0] == pytest.approx(30.0)
+
+
+def _ray_z(world, x, y):
+    """MuJoCo 가 '실제로' 보는 수면 높이: 위에서 아래로 광선을 쏴서 맞은 높이."""
+    import mujoco
+    mujoco.mj_forward(world.model, world.data)
+    geomid = np.zeros(1, np.int32)
+    dist = mujoco.mj_ray(world.model, world.data, np.array([x, y, 20.0]), np.array([0, 0, -1.0]),
+                         None, 1, -1, geomid)
+    return 20.0 - dist, int(geomid[0])
+
+
+def test_water_surface_matches_waves(wave_cfg):
+    """MuJoCo hfield 에 쓴 수면 = WaveField 가 계산한 수면 (방향·축척·높이 기준점 확인).
+
+    격자점 위에서 광선을 쏴 비교한다. 행/열(x/y)을 뒤집거나, 0~1 변환을 잘못하면 여기서 걸린다.
+    """
+    cfg = OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml")
+    cfg.waves = wave_cfg
+    w = World(ocean=cfg)
+    wf = WaveField(wave_cfg, depth=5.0)
+    surf = WaterSurface(w.model, wf)
+    surf.update(7.3)
+    n = cfg.domain.surface_res
+    xs = np.linspace(-25, 25, n)
+    for i, j in [(10, 100), (100, 10), (64, 64), (5, 120)]:   # (행=y, 열=x)
+        z, g = _ray_z(w, xs[j], xs[i])
+        assert g == surf.geom_id
+        assert z == pytest.approx(wf.elevation(xs[j], xs[i], 7.3), abs=1e-4)
+
+
+def test_water_surface_never_clips(wave_cfg):
+    """긴 시간 동안 hfield 값이 0~1 을 벗어나지 않는다 = 화면에서 파도가 잘리지 않는다."""
+    cfg = OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml")
+    cfg.waves = wave_cfg
+    w = World(ocean=cfg)
+    surf = WaterSurface(w.model, WaveField(wave_cfg))
+    lo, hi = 1.0, 0.0
+    for t in np.arange(0.0, 600.0, 1.7):
+        surf.update(t)
+        lo, hi = min(lo, surf._data.min()), max(hi, surf._data.max())
+    assert 0.0 <= lo and hi <= 1.0
 
 
 @pytest.mark.skip(reason="1-3 구현 후")
