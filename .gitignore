@@ -15,3 +15,6 @@ log/
 # 녹화 영상 등 산출물
 *.mp4
 *.gif
+# README 용 영상은 예외
+!docs/*.mp4
+!docs/*.gif

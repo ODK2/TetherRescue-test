@@ -3,7 +3,9 @@
 TetherRescue 시나리오(바다 · 익수자 · 구조보트)를 **MuJoCo 단독, CPU 기반**으로
 최대한 정교하게 만들어 보며 MuJoCo의 한계를 시험한다. ROS2(Jazzy)는 마지막에 연동한다.
 
-![자율 구조 미션: 접근 → 견인 → 로프 감기 → 걸어서 뭍으로](docs/rescue_mission.jpg)
+![자율 구조 미션: 접근 → 견인 → 로프 감기 → 걸어서 뭍으로 (4배속)](docs/rescue_mission.gif)
+
+▶ 고화질 영상 (2배속, 42초): [docs/rescue_mission_2x.mp4](docs/rescue_mission_2x.mp4)
 
 로봇 보트가 **스스로** 물에 빠진 사람에게 접근 → 로프 연결 → 해안으로 견인 → 얕은 곳에서 로프를 감아 끌어옴
 → 로프를 풀고 비켜 주면 사람이 일어나 모래사장까지 걸어간다. (파도 2종 × 해류 3방향 × 시작 위치 4곳, 8개 조건 모두 성공)
@@ -68,12 +70,33 @@ rescue_sim_ws/
 
 설계 원칙: `ocean/`은 MuJoCo를 모른다 → 단위 테스트가 쉽고, 부력·시각화·ROS 노드가 같은 인터페이스를 공유.
 
+## 처음 설치 (다른 PC)
+
+Ubuntu 24.04 (WSL2 포함) 기준, GPU 없어도 됨 (CPU 렌더링).
+
+```bash
+sudo apt install python3.12-venv libegl1 libgl1-mesa-dri   # 가상환경 + 화면 없는 CPU 렌더링(EGL)
+git clone https://github.com/ODK2/TetherRescue-test.git rescue_sim_ws
+cd rescue_sim_ws
+python3 -m venv --system-site-packages .venv               # system-site: 나중에 ROS2 rclpy 공유용
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e src/rescue_sim
+pytest -q src/rescue_sim/test                              # 35 passed 면 준비 완료 (~1분 20초)
+```
+
+`sudo` 를 못 쓰는 PC 에서 `python3 -m venv` 가 *ensurepip is not available* 로 실패하면:
+
+```bash
+python3 -m venv --without-pip --system-site-packages .venv
+curl -sS https://bootstrap.pypa.io/get-pip.py | .venv/bin/python
+```
+
 ## 실행
 
 ```bash
 cd ~/study/rescue_sim_ws
 source .venv/bin/activate
-pip install -e src/rescue_sim            # 최초 1회
 
 pytest -q src/rescue_sim/test
 python src/rescue_sim/scripts/run_boat.py                   # 보트 조종 (↑↓ 추력, ←→ 조향, Home 정지)
