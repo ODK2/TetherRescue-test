@@ -1,0 +1,47 @@
+<!-- 4단계: 보트 + 물에 빠진 사람 + 로프
+
+     사람: 구명조끼 입고 '등을 대고' 떠 있는 자세로 단순화 (직육면체 1.7 x 0.4 x 0.25 m, 80 kg).
+           몸체 x 축 = 머리 방향, z 축 = 가슴(얼굴) 방향. 물 힘은 보트와 같은 hydro/hull.py 가 계산.
+           발 닿는 곳에서 일어서서 걷는 건 물리가 아니라 애니메이션 (rescue/person.py).
+           leg_*/arm_* 는 걸을 때 흔들려고 이름을 붙임.
+     로프: 보트 tow_point ↔ 사람 harness 를 잇는 spatial tendon.
+           limited + range 상한 = 로프 길이 → 길이를 넘을 때만 당기는 힘(제약) 발생 = 로프.
+           연결 전에는 상한을 아주 크게 해서 효과 없음 (rescue/rope.py 가 실행 중에 바꿈). -->
+<mujoco model="rescue_scene">
+  <include file="boat_scene.xml"/>
+
+  <asset>
+    <material name="skin" rgba="0.95 0.75 0.6 1"/>
+    <material name="vest" rgba="1.0 0.85 0.0 1"/>
+    <material name="cloth" rgba="0.2 0.25 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <body name="person" pos="22 8 0">
+      <freejoint name="person_free"/>
+      <!-- 무게중심을 낮게: 구명조끼 부력이 가슴(위)쪽이라 얼굴이 위로 오는 효과를 흉내 -->
+      <inertial pos="0 0 -0.08" mass="80" diaginertia="1.48 19.7 20.3"/>
+      <!-- 충돌·부력 기준 직육면체 (겉모양은 안 보이게) -->
+      <geom name="person_body" type="box" size="0.85 0.2 0.125" rgba="0 0 0 0" mass="0"/>
+      <!-- 겉모양 -->
+      <geom type="capsule" fromto="0.05 0 0 0.5 0 0" size="0.17" material="vest" contype="0" conaffinity="0" mass="0"/>
+      <geom type="sphere" pos="0.72 0 0.03" size="0.11" material="skin" contype="0" conaffinity="0" mass="0"/>
+      <geom name="leg_l" type="capsule" fromto="0.0 0.09 -0.02 -0.8 0.1 -0.04" size="0.07" material="cloth" contype="0" conaffinity="0" mass="0"/>
+      <geom name="leg_r" type="capsule" fromto="0.0 -0.09 -0.02 -0.8 -0.1 -0.04" size="0.07" material="cloth" contype="0" conaffinity="0" mass="0"/>
+      <geom name="arm_l" type="capsule" fromto="0.45 0.2 0 0.05 0.26 0" size="0.05" material="skin" contype="0" conaffinity="0" mass="0"/>
+      <geom name="arm_r" type="capsule" fromto="0.45 -0.2 0 0.05 -0.26 0" size="0.05" material="skin" contype="0" conaffinity="0" mass="0"/>
+      <!-- 로프 고리 높이가 중요: 몸 위 0.12 m 면 옆으로 당길 때 63° 까지 굴러감, 0.04 m → 32°, 0 → 21° -->
+      <site name="harness" pos="0.55 0 0.04" size="0.04" rgba="1 0 0 1"/>
+    </body>
+  </worldbody>
+
+  <tendon>
+    <!-- width 는 화면용 두께 (물리 영향 없음). 실제 로프 ~1.5 cm 는 CPU 960px 화면에서 거의 안 보여서 굵게 -->
+    <!-- solreflimit = 로프 탄성 (제약이 얼마나 "부드럽게" 버티는지, 시간상수 s). 기본 0.02 는 강철봉처럼
+         순간 정지 → 팽팽해질 때 충격 4.8 kN. 0.2 → ~470 N, 8 m 로프가 ~17 cm(2%) 늘어남 (나일론 수준) -->
+    <spatial name="rope" limited="true" range="0 1000" solreflimit="0.2 1" width="0.05" rgba="1 0.2 0.1 0">
+      <site site="tow_point"/>
+      <site site="harness"/>
+    </spatial>
+  </tendon>
+</mujoco>

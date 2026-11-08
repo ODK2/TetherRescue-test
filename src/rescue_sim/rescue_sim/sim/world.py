@@ -18,6 +18,7 @@ from ..ocean.config import OceanConfig
 
 DEFAULT_SCENE = ASSETS_DIR / "ocean_scene.xml"
 BOAT_SCENE = ASSETS_DIR / "boat_scene.xml"
+RESCUE_SCENE = ASSETS_DIR / "rescue_scene.xml"
 
 
 class World:
