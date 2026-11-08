@@ -30,7 +30,8 @@ class BathymetryConfig:
     deep_depth: float = 5.0
     shore_x: float = -10.0
     slope_start_x: float = 15.0
-    shallow_water: bool = False
+    beach_height: float = 1.0      # 물가 너머 모래사장 최고 높이 [m]
+    shallow_water: bool = True     # 수심에 따라 파도가 바뀌는 효과 (waves.py)
 
 
 @dataclass

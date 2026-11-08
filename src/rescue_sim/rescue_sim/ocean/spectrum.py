@@ -69,17 +69,19 @@ def jonswap(omega: np.ndarray, hs: float, tp: float, gamma: float = 3.3) -> np.n
     return s
 
 
-def dispersion_k(omega: np.ndarray, depth: float | None = None) -> np.ndarray:
+def dispersion_k(omega: np.ndarray, depth: float | np.ndarray | None = None) -> np.ndarray:
     """분산관계 ω² = g k tanh(k h) 를 k 에 대해 푼다.
 
     depth=None 이면 깊은 물(tanh → 1): k = ω²/g.
     유한 수심이면 같은 ω 라도 k 가 커진다 = 파장이 짧아진다 (해안 쪽에서 파도가 촘촘해지는 이유).
+    depth 가 배열이면 omega 와 브로드캐스트한다 (예: depth (m,1) × omega (n,) → (m,n)).
     """
     omega = np.asarray(omega, dtype=float)
     k_deep = omega**2 / G
     if depth is None:
         return k_deep
-    h = float(depth)
+    h = np.asarray(depth, dtype=float)
+    k_deep = np.broadcast_to(k_deep, np.broadcast_shapes(k_deep.shape, h.shape))
     # 초기값: 얕은 물/깊은 물을 잇는 근사, 이후 뉴턴법 몇 번이면 기계 정밀도 수렴
     k = k_deep / np.sqrt(np.tanh(k_deep * h))
     for _ in range(20):

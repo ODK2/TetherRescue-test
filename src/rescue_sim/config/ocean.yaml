@@ -20,7 +20,8 @@ bathymetry:
   deep_depth: 5.0       # m, 먼바다 수심
   shore_x: -10.0        # m, 수심 0이 되는 해안선 x
   slope_start_x: 15.0   # m, 이 지점부터 해안까지 경사
-  shallow_water: false  # 얕은 물 효과 (1-3에서 결정)
+  beach_height: 1.0     # m, 물가 너머 모래사장 최고 높이
+  shallow_water: true   # 얕은 물 효과: 해안에 가까울수록 파도 간격↓ 높이↑, 너무 얕으면 부서짐
 
 current:
   velocity: [0.0, 0.0]  # m/s, 일정 해류 (x, y)

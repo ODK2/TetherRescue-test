@@ -55,7 +55,7 @@ def bench_surface(cfg: OceanConfig, res: int, sim_seconds: float = 20.0) -> tupl
     cfg = deepcopy(cfg)
     cfg.domain.surface_res = res
     world = World(ocean=cfg)
-    surf = WaterSurface(world.model, WaveField(cfg.waves))
+    surf = WaterSurface(world.model, WaveField(cfg.waves, bathymetry=world.bathymetry))
     steps = max(1, round(1.0 / (cfg.viz.surface_fps * world.model.opt.timestep)))
     surf_time, n_upd = 0.0, 0
     while world.time < sim_seconds:

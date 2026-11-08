@@ -3,7 +3,8 @@ import numpy as np
 import pytest
 
 from rescue_sim import CONFIG_DIR
-from rescue_sim.ocean import OceanConfig, WaveField
+from rescue_sim.ocean import Bathymetry, OceanConfig, WaveField
+from rescue_sim.ocean.waves import BREAK_RATIO
 from rescue_sim.ocean.spectrum import dispersion_k, jonswap, sample_components
 from rescue_sim.sim import World
 from rescue_sim.sim.water_surface import WaterSurface
@@ -88,13 +89,18 @@ def test_world_uses_yaml_resolution():
     assert m.hfield_size[h, 0] == pytest.approx(30.0)
 
 
-def _ray_z(world, x, y):
-    """MuJoCo 가 '실제로' 보는 수면 높이: 위에서 아래로 광선을 쏴서 맞은 높이."""
+WATER_GROUP, SEABED_GROUP = 1, 0
+
+
+def _ray_z(world, x, y, group=WATER_GROUP):
+    """MuJoCo 가 '실제로' 보는 높이: 위에서 아래로 광선을 쏴서 맞은 높이 (geom group 으로 수면/해저 선택)."""
     import mujoco
     mujoco.mj_forward(world.model, world.data)
     geomid = np.zeros(1, np.int32)
+    groups = np.zeros(6, np.uint8)
+    groups[group] = 1
     dist = mujoco.mj_ray(world.model, world.data, np.array([x, y, 20.0]), np.array([0, 0, -1.0]),
-                         None, 1, -1, geomid)
+                         groups, 1, -1, geomid)
     return 20.0 - dist, int(geomid[0])
 
 
@@ -106,7 +112,7 @@ def test_water_surface_matches_waves(wave_cfg):
     cfg = OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml")
     cfg.waves = wave_cfg
     w = World(ocean=cfg)
-    wf = WaveField(wave_cfg, depth=5.0)
+    wf = WaveField(wave_cfg, bathymetry=w.bathymetry)   # 얕은 물 효과 포함
     surf = WaterSurface(w.model, wf)
     surf.update(7.3)
     n = cfg.domain.surface_res
@@ -122,7 +128,7 @@ def test_water_surface_never_clips(wave_cfg):
     cfg = OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml")
     cfg.waves = wave_cfg
     w = World(ocean=cfg)
-    surf = WaterSurface(w.model, WaveField(wave_cfg))
+    surf = WaterSurface(w.model, WaveField(wave_cfg, bathymetry=w.bathymetry))
     lo, hi = 1.0, 0.0
     for t in np.arange(0.0, 600.0, 1.7):
         surf.update(t)
@@ -130,6 +136,55 @@ def test_water_surface_never_clips(wave_cfg):
     assert 0.0 <= lo and hi <= 1.0
 
 
-@pytest.mark.skip(reason="1-3 구현 후")
-def test_depth_zero_beyond_shore():
-    """해안선 너머 수심 0, 먼바다 수심 = deep_depth."""
+# ------------------------------------------------------------------ 1-3 해저 지형
+@pytest.fixture
+def bathy():
+    return Bathymetry(OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml").bathymetry)
+
+
+def test_depth_zero_beyond_shore(bathy):
+    """해안선 너머 수심 0, 먼바다 수심 = deep_depth, 그 사이는 직선 경사."""
+    c = bathy.cfg
+    assert bathy.depth(c.shore_x - 5.0) == 0.0
+    assert bathy.depth(c.shore_x) == 0.0
+    assert bathy.depth(c.slope_start_x + 5.0) == pytest.approx(c.deep_depth)
+    mid = 0.5 * (c.shore_x + c.slope_start_x)
+    assert bathy.depth(mid) == pytest.approx(c.deep_depth / 2)
+    assert bathy.seabed_z(-1e3) == pytest.approx(c.beach_height)   # 모래사장은 beach_height 에서 평평
+
+
+def test_seabed_in_mujoco(bathy):
+    """MuJoCo 해저 hfield = Bathymetry.seabed_z (광선으로 확인, 수면은 제외)."""
+    w = World(ocean=OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml"))
+    n = w.model.hfield_ncol[w.model.hfield("seabed").id]
+    xs = np.linspace(-25, 25, n)
+    for j in [0, 20, 40, 60, 90, 127]:                     # 모래사장 ~ 경사 ~ 먼바다
+        z, g = _ray_z(w, xs[j], 3.1, group=SEABED_GROUP)
+        assert g == w.model.geom("seabed").id
+        assert z == pytest.approx(bathy.seabed_z(xs[j]), abs=1e-4)
+
+
+def test_shallow_water_effects(wave_cfg, bathy):
+    """얕은 물: 깊은 쪽은 그대로, 땅 위는 0, 얕은 곳은 쇄파 한계 이하, 경계에서 끊김 없음."""
+    wf = WaveField(wave_cfg, bathymetry=bathy)
+    deep = WaveField(wave_cfg, depth=bathy.cfg.deep_depth)
+    x0 = bathy.cfg.slope_start_x
+    y = np.linspace(-20, 20, 9)
+    for t in [0.0, 11.0]:
+        np.testing.assert_allclose(wf.elevation(x0 + 3.0, y, t), deep.elevation(x0 + 3.0, y, t), atol=1e-12)
+        np.testing.assert_array_equal(wf.elevation(bathy.cfg.shore_x - 2.0, y, t), 0.0)
+        assert np.max(np.abs(wf.elevation(x0 + 1e-4, y, t) - wf.elevation(x0 - 1e-4, y, t))) < 1e-3
+
+    t = np.arange(0.0, 600.0, 0.3)
+    x_shallow = bathy.cfg.shore_x + 2.0                    # 수심 0.4 m
+    eta = np.array([wf.elevation(x_shallow, 0.0, ti) for ti in t])
+    assert 4 * eta.std() <= 1.1 * BREAK_RATIO * bathy.depth(x_shallow)
+
+
+def test_shallow_water_off_is_constant_depth(wave_cfg, bathy):
+    """shallow_water=False 면 수심 변화를 무시하고 먼바다 수심으로 계산."""
+    from dataclasses import replace
+    off = Bathymetry(replace(bathy.cfg, shallow_water=False))
+    x, y = np.meshgrid(np.linspace(-25, 25, 7), np.linspace(-25, 25, 5))
+    np.testing.assert_allclose(WaveField(wave_cfg, bathymetry=off).elevation(x, y, 4.0),
+                               WaveField(wave_cfg, depth=bathy.cfg.deep_depth).elevation(x, y, 4.0))

@@ -1,0 +1,15 @@
+# 2026-11-08  x86_64  OPENBLAS_NUM_THREADS=1
+mj_step only: 1854x realtime
+
+elevation() 일반 계산, n_components=32
+       1 pts:    0.008 ms/call
+     100 pts:    0.056 ms/call
+    4096 pts:    2.061 ms/call
+   16384 pts:    8.371 ms/call
+   65536 pts:   36.695 ms/call
+
+수면 hfield 갱신 (fixed_points), 25fps, 렌더링 제외
+   64×64 :   0.035 ms/update  → 물리+수면    717x realtime
+  128×128:   0.120 ms/update  → 물리+수면    282x realtime
+  256×256:   0.443 ms/update  → 물리+수면     86x realtime
+  512×512:   3.467 ms/update  → 물리+수면     11x realtime

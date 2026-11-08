@@ -33,7 +33,7 @@ def main():
 
     cfg = OceanConfig.from_yaml(CONFIG_DIR / "ocean.yaml", preset=args.preset)
     world = World(ocean=cfg)
-    waves = WaveField(cfg.waves, depth=cfg.bathymetry.deep_depth)
+    waves = WaveField(cfg.waves, bathymetry=world.bathymetry)   # 해저 지형에 따른 얕은 물 효과
     surface = WaterSurface(world.model, waves)
     print(f"waves: Hs={cfg.waves.hs} m, Tp={cfg.waves.tp} s, 수면 표현 범위 ±{surface.half_range:.2f} m")
 
@@ -54,7 +54,7 @@ def main():
         r = mujoco.Renderer(world.model, 480, 854)
         cam = mujoco.MjvCamera()
         cam.lookat[:] = (0.0, 0.0, 0.0)
-        cam.distance, cam.elevation, cam.azimuth = 55.0, -22.0, 200.0
+        cam.distance, cam.elevation, cam.azimuth = 55.0, -22.0, 240.0
         frames = []
         while world.time < args.duration:
             advance()
