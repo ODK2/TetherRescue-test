@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# colcon (7단계)
+build/
+install/
+log/
+
+# 녹화 영상 등 산출물
+*.mp4
+*.gif

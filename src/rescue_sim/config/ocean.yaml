@@ -1,0 +1,29 @@
+# 1단계: 바다 환경 파라미터
+# 값은 초안이고, 1-1 ~ 1-4를 진행하면서 같이 정한다.
+
+domain:
+  size_x: 50.0          # m, 바다 영역 (x: 먼바다 → 해안)
+  size_y: 50.0          # m
+  surface_res: 128      # 수면 hfield 해상도 (시각화용)
+
+waves:
+  preset: harbor        # harbor | rough  (아래 presets 중 선택)
+  n_components: 32      # 합성할 성분파 개수
+  direction_deg: 180.0  # 주 진행 방향 (180 = 해안 쪽, -x 방향)
+  spreading_deg: 30.0   # 방향 퍼짐
+  seed: 0
+  presets:
+    harbor: { hs: 0.2, tp: 3.0, gamma: 3.3 }   # 유의파고 Hs[m], 첨두주기 Tp[s], JONSWAP 첨예도
+    rough:  { hs: 0.8, tp: 6.0, gamma: 3.3 }
+
+bathymetry:
+  deep_depth: 5.0       # m, 먼바다 수심
+  shore_x: -10.0        # m, 수심 0이 되는 해안선 x
+  slope_start_x: 15.0   # m, 이 지점부터 해안까지 경사
+  shallow_water: false  # 얕은 물 효과 (1-3에서 결정)
+
+current:
+  velocity: [0.0, 0.0]  # m/s, 일정 해류 (x, y)
+
+viz:
+  surface_fps: 25       # 수면 hfield 갱신 주기

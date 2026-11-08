@@ -1,0 +1,33 @@
+<!-- 1단계 바다 씬 (뼈대)
+     좌표: x=-25(해안 쪽) ~ +25(먼바다), y=-25 ~ +25, 정지 수면 z=0
+     hfield 높이 = data(0~1) * elevation + geom pos z
+       water  : elevation 1.0, pos z -0.5  → data 0.5 가 정지 수면 (±0.5m 표현)
+       seabed : elevation 6.0, pos z -6.0  → data 0 이 수심 6m
+     hfield data는 런타임에 Python에서 채운다 (sim/water_surface.py, ocean/bathymetry.py).
+     nrow/ncol 은 config/ocean.yaml 의 surface_res 와 맞춘다. -->
+<mujoco model="ocean">
+  <option timestep="0.002" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="1280" offheight="720"/>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.6 0.6 0.6"/>
+    <quality shadowsize="2048"/>
+  </visual>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.55 0.75 0.95" rgb2="0.95 0.97 1" width="256" height="256"/>
+    <material name="water" rgba="0.10 0.36 0.60 0.75" specular="0.8" shininess="0.9" reflectance="0.1"/>
+    <material name="seabed" rgba="0.80 0.72 0.52 1"/>
+
+    <hfield name="water"  nrow="128" ncol="128" size="25 25 1.0 0.01"/>
+    <hfield name="seabed" nrow="128" ncol="128" size="25 25 6.0 0.5"/>
+  </asset>
+
+  <worldbody>
+    <light name="sun" pos="0 0 30" dir="0 0.3 -1" directional="true" diffuse="0.7 0.7 0.7"/>
+    <geom name="seabed" type="hfield" hfield="seabed" pos="0 0 -6.0" material="seabed"/>
+    <!-- 수면은 시각 전용: 충돌 없음 -->
+    <geom name="water" type="hfield" hfield="water" pos="0 0 -0.5" material="water"
+          contype="0" conaffinity="0"/>
+  </worldbody>
+</mujoco>

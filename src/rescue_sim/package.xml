@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypelevel="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rescue_sim</name>
+  <version>0.0.1</version>
+  <description>MuJoCo 기반 물가 익수자 구조 시뮬레이션 (TetherRescue 학습용)</description>
+  <maintainer email="dhehehrud@gmail.com">user1</maintainer>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

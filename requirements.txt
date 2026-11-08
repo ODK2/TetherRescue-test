@@ -1,0 +1,8 @@
+# ROS2 Jazzy(rclpy)는 apt로 설치 — 여기엔 pip 패키지만
+mujoco==4.0.0
+numpy
+pyyaml
+imageio[ffmpeg]
+matplotlib
+pytest
+ipykernel               # notebooks/ 실행용

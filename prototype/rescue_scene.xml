@@ -1,0 +1,64 @@
+<!-- 물가 구조 시나리오: 구조보트 + 익수자 + 해안
+     물은 시각용(충돌 없음)이고, 부력/항력/파도는 core.py에서 직접 계산해 힘으로 넣는다. -->
+<mujoco model="tether_rescue">
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+
+  <visual>
+    <global offwidth="1280" offheight="720"/>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.6 0.6 0.6"/>
+  </visual>
+
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.55 0.75 0.95" rgb2="0.95 0.97 1" width="256" height="256"/>
+    <texture name="sand" type="2d" builtin="flat" rgb1="0.86 0.78 0.58" mark="random" random="0.08" markrgb="0.7 0.62 0.45" width="256" height="256"/>
+    <material name="sand" texture="sand" texrepeat="8 8"/>
+    <material name="water" rgba="0.12 0.38 0.62 0.55" specular="0.6" shininess="0.9"/>
+    <material name="seabed" rgba="0.25 0.30 0.28 1"/>
+    <material name="hull" rgba="0.95 0.45 0.10 1"/>
+    <material name="deck" rgba="0.92 0.92 0.92 1"/>
+    <material name="skin" rgba="0.95 0.75 0.62 1"/>
+    <material name="vest" rgba="0.20 0.25 0.85 1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="5 0 20" dir="0 0 -1" directional="true" diffuse="0.7 0.7 0.7"/>
+
+    <!-- 해저 / 수면(시각 전용) / 해안 -->
+    <geom name="seabed" type="plane" size="40 40 0.1" pos="0 0 -4" material="seabed" contype="0" conaffinity="0"/>
+    <geom name="water" type="box" size="40 40 2" pos="10 0 -2" material="water" contype="0" conaffinity="0" group="1"/>
+    <geom name="shore" type="box" size="10 40 0.6" pos="-11 0 -0.3" material="sand"/>
+    <geom name="dock" type="box" size="2.0 1.2 0.15" pos="1.0 0 0.45" rgba="0.55 0.38 0.22 1"/>
+    <site name="rescue_point" pos="3.0 0 0.62" size="0.3" rgba="0.1 0.9 0.2 0.6"/>
+
+    <!-- 구조 보트 (길이 2.4m, 폭 1.0m) -->
+    <body name="boat" pos="5.5 0 0.1">
+      <freejoint name="boat_free"/>
+      <geom name="hull" type="box" size="1.2 0.5 0.18" mass="180" material="hull"/>
+      <geom name="bow" type="cylinder" size="0.5 0.18" pos="1.2 0 0" mass="10" material="hull"/>
+      <geom name="cabin" type="box" size="0.35 0.3 0.25" pos="-0.2 0 0.4" mass="15" material="deck"/>
+      <site name="thruster" pos="-1.2 0 -0.1" size="0.06" rgba="0.2 0.2 0.2 1"/>
+      <site name="tow_point" pos="-1.25 0 0.15" size="0.07" rgba="1 1 0 1"/>
+      <site name="imu" pos="0 0 0" size="0.03"/>
+    </body>
+
+    <!-- 익수자: 몸통(구명조끼) + 머리. 머리(기도) 높이가 airway 판정 기준 -->
+    <body name="victim" pos="16 7 -0.3">
+      <freejoint name="victim_free"/>
+      <geom name="torso" type="capsule" size="0.18 0.32" mass="62" material="vest"/>
+      <geom name="head" type="sphere" size="0.12" pos="0 0 0.58" mass="6" material="skin"/>
+      <site name="airway" pos="0 0 0.58" size="0.02"/>
+      <site name="harness" pos="0 0 0.25" size="0.05" rgba="1 1 0 1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- ctrl ∈ [-1,1] → 추진력 최대 900N, 조향 토크 최대 450N·m (보트 기준 좌표계) -->
+    <general name="thrust" site="thruster" gear="900 0 0 0 0 0" ctrlrange="-1 1" ctrllimited="true"/>
+    <general name="steer" site="imu" gear="0 0 0 0 0 450" ctrlrange="-1 1" ctrllimited="true"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="boat_accel" site="imu"/>
+    <gyro name="boat_gyro" site="imu"/>
+  </sensor>
+</mujoco>
