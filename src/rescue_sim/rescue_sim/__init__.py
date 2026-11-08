@@ -7,6 +7,6 @@
 """
 from pathlib import Path
 
-PKG_DIR = Path(__file__).resolve().parent
+PKG_DIR = Path(__file__).absolute().parent   # resolve() 쓰면 Windows에서 Z: → UNC 로 바뀌어 MuJoCo가 못 읽음
 ASSETS_DIR = PKG_DIR / "assets"
 CONFIG_DIR = PKG_DIR.parent / "config"   # 소스 트리 기준. ROS 설치 후엔 share/ 경로 사용
