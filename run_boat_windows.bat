@@ -7,7 +7,8 @@ rem   py -3.12 -m venv %USERPROFILE%\rescue_sim_venv
 rem   %USERPROFILE%\rescue_sim_venv\Scripts\pip install mujoco==4.0.0 numpy pyyaml imageio[ffmpeg]
 
 rem MuJoCo는 \\wsl.localhost\... (UNC) 경로를 못 읽음 -> pushd 로 임시 드라이브 문자(Z: 등) 할당
-pushd "\\wsl.localhost\Ubuntu-24.04\home\user1\study\rescue_sim_ws\src\rescue_sim"
+rem %~dp0 = 이 bat 파일이 있는 폴더 (레포 루트). 탐색기에서 \\wsl.localhost\<배포판>\...\rescue_sim_ws 로 열어 실행
+pushd "%~dp0src\rescue_sim"
 set "SRC=%CD%"
 set "PYTHONPATH=%SRC%"
 set "PYTHONUTF8=1"

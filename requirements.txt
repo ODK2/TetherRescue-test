@@ -3,6 +3,7 @@ mujoco==4.0.0
 numpy
 pyyaml
 imageio[ffmpeg]
+pillow                  # 브라우저 뷰어·녹화의 JPEG/글자
 matplotlib
 pytest
 ipykernel               # notebooks/ 실행용
