@@ -6,3 +6,4 @@ imageio[ffmpeg]
 matplotlib
 pytest
 ipykernel               # notebooks/ 실행용
+nbstripout              # 커밋 시 노트북 출력 자동 삭제 (설치 후: nbstripout --install --attributes .gitattributes)
