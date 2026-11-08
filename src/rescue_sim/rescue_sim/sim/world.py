@@ -1,11 +1,13 @@
 """MuJoCo 월드 래퍼: 씬 로딩, 스텝 루프, 성능 측정의 공통 틀.
 
-단계가 진행되면 여기에 '매 스텝 외력 계산 훅'(부력·항력·로프 등)이 붙는다.
+pre_step 훅: 매 물리 스텝(mj_step) 직전에 호출되는 함수 목록.
+  부력·항력·추진기·로프처럼 '매 스텝 바뀌는 외력'은 여기서 data.xfrc_applied / data.ctrl 에 넣는다.
 """
 from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Callable
 
 import mujoco
 import numpy as np
@@ -15,6 +17,7 @@ from ..ocean.bathymetry import Bathymetry
 from ..ocean.config import OceanConfig
 
 DEFAULT_SCENE = ASSETS_DIR / "ocean_scene.xml"
+BOAT_SCENE = ASSETS_DIR / "boat_scene.xml"
 
 
 class World:
@@ -33,8 +36,9 @@ class World:
             self._write_seabed(self.model, self.bathymetry)
         self.data = mujoco.MjData(self.model)
         mujoco.mj_forward(self.model, self.data)
-        self.step_wall_time = 0.0   # 누적 스텝 소요 시간 (실시간 배속 계산용)
+        self.step_wall_time = 0.0   # 누적 스텝 소요 시간 (실시간 배속 계산용, 훅 포함)
         self.n_steps = 0
+        self.pre_step: list[Callable[[mujoco.MjModel, mujoco.MjData], None]] = []
 
     @staticmethod
     def _apply_ocean(spec: mujoco.MjSpec, ocean: OceanConfig, bathy: Bathymetry):
@@ -81,9 +85,11 @@ class World:
 
     def step(self, n: int = 1):
         t0 = time.perf_counter()
+        m, d, hooks = self.model, self.data, self.pre_step
         for _ in range(n):
-            # TODO(2단계~): 외력 훅 — qfrc_applied 초기화 후 부력/항력 등 적용
-            mujoco.mj_step(self.model, self.data)
+            for h in hooks:
+                h(m, d)
+            mujoco.mj_step(m, d)
         self.step_wall_time += time.perf_counter() - t0
         self.n_steps += n
 

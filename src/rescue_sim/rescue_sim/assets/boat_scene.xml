@@ -1,0 +1,51 @@
+<!-- 3단계: 바다 씬 + 로봇 구조 보트
+
+     바다(수면·해저·조명)는 ocean_scene.xml 을 그대로 include 한다.
+     보트 몸체 원점 = 선체 중심. 몸체 x 축 = 선수(앞) 방향.
+     물 힘(부력·항력)은 xml 이 아니라 Python(hydro/hull.py)이 매 스텝 xfrc_applied 로 넣는다.
+     추진기는 MuJoCo actuator(site 에 힘) — ctrl 단위는 뉴턴. -->
+<mujoco model="boat_scene">
+  <include file="ocean_scene.xml"/>
+
+  <asset>
+    <material name="hull" rgba="0.95 0.45 0.10 1"/>
+    <material name="deck" rgba="0.92 0.92 0.90 1"/>
+    <material name="dark" rgba="0.15 0.15 0.18 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- 먼바다 x=10 (수심 3m), 해안(-x) 쪽을 보고 시작 -->
+    <body name="boat" pos="10 0 0.12" quat="0 0 0 1">
+      <freejoint name="boat_free"/>
+      <!-- 질량 250 kg, 무게중심은 장비 때문에 중심보다 5cm 아래 -->
+      <inertial pos="0 0 -0.05" mass="250" diaginertia="24.2 123 140.8"/>
+
+      <!-- 선체: 충돌용 직육면체 (부력 계산의 길이·폭·높이와 같아야 함) -->
+      <geom name="hull" type="box" size="1.2 0.5 0.2" material="hull" mass="0"/>
+      <!-- 겉모양 전용 (충돌·질량 없음) -->
+      <geom type="box" size="1.15 0.45 0.01" pos="0 0 0.205" material="deck" contype="0" conaffinity="0" mass="0"/>
+      <geom type="box" size="0.25 0.3 0.15" pos="-0.2 0 0.36" material="deck" contype="0" conaffinity="0" mass="0"/>
+      <geom type="cylinder" size="0.03 0.25" pos="-0.2 0 0.75" material="dark" contype="0" conaffinity="0" mass="0"/>
+      <geom type="cylinder" size="0.06 0.08" pos="-1.15 0.35 -0.2" euler="0 90 0" material="dark" contype="0" conaffinity="0" mass="0"/>
+      <geom type="cylinder" size="0.06 0.08" pos="-1.15 -0.35 -0.2" euler="0 90 0" material="dark" contype="0" conaffinity="0" mass="0"/>
+
+      <site name="thr_l" pos="-1.15 0.35 -0.2"/>
+      <site name="thr_r" pos="-1.15 -0.35 -0.2"/>
+      <site name="imu" pos="0 0 0"/>
+      <site name="tow_point" pos="-1.2 0 0.2" size="0.04" rgba="1 1 0 1"/>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <!-- 좌/우 추진기: site 의 x 축(선수 방향)으로 힘. ctrl = 추력 [N] -->
+    <motor name="thr_l" site="thr_l" gear="1 0 0 0 0 0" ctrlrange="-150 300" ctrllimited="true"/>
+    <motor name="thr_r" site="thr_r" gear="1 0 0 0 0 0" ctrlrange="-150 300" ctrllimited="true"/>
+  </actuator>
+
+  <sensor>
+    <accelerometer name="boat_accel" site="imu"/>
+    <gyro name="boat_gyro" site="imu"/>
+    <framepos name="boat_pos" objtype="site" objname="imu"/>
+    <framequat name="boat_quat" objtype="site" objname="imu"/>
+  </sensor>
+</mujoco>

@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")   # scripts/view_ocean.py 참고
+
 import sys
 from pathlib import Path
 

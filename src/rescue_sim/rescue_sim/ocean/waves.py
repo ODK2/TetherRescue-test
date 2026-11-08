@@ -21,7 +21,7 @@
 
 할 일
   - elevation(x, y, t)  : 수면 높이 η [m]                    ✅
-  - velocity(x, y, z, t): 물 입자 속도 (u, v, w) [m/s]       ⏳ 2단계 항력 전에
+  - velocity(x, y, z, t): 물 입자 속도 (u, v, w) [m/s]       ✅ 2단계 (선형 파 이론, 수면 위는 z=0 값 사용)
 """
 from __future__ import annotations
 
@@ -98,33 +98,47 @@ class WaveField:
         hs_local = 4.0 * np.sqrt(0.5 * np.sum(amp**2, axis=1, keepdims=True))
         amp *= np.minimum(1.0, BREAK_RATIO * b.depth(xs)[:, None] / hs_local)
 
-        self._tab_x, self._tab_sx, self._tab_amp = xs, sx, amp
+        # 표 5개를 한 배열로: 지점 하나 보간에 한 번만 인덱싱 (매 물리 스텝 호출되므로 중요)
+        self._tab_x = xs
+        self._tab = np.stack([sx, amp, k, kx, np.broadcast_to(h, k.shape)], axis=1)   # (m, 5, n)
 
-    def _shallow_lookup(self, x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """x (N,) → (Sx (N,n), amp (N,n)). 깊은 쪽은 원래 공식, 땅 쪽은 진폭 0."""
-        xs = self._tab_x
-        f = (np.clip(x, xs[0], xs[-1]) - xs[0]) / (xs[1] - xs[0])
-        i = np.minimum(f.astype(int), len(xs) - 2)
-        w = (f - i)[:, None]
-        sx = self._tab_sx[i] * (1 - w) + self._tab_sx[i + 1] * w
-        amp = self._tab_amp[i] * (1 - w) + self._tab_amp[i + 1] * w
-        deep = x >= xs[-1]
-        sx[deep] = x[deep, None] * self._kx
-        amp[deep] = self.comp.amp
-        return sx, amp
+    def _lookup(self, x: np.ndarray) -> np.ndarray:
+        """x (N,) → 지점별 [Sx, amp, k, kx, h] (N, 5, n).
+
+        얕은 구간은 표 보간, 깊은 쪽(x ≥ slope_start)은 원래 공식, 땅 쪽은 표 끝값(진폭 0).
+        """
+        c = self.comp
+        n = len(x)
+        out = np.empty((n, 5, c.n))
+        out[:, 0] = x[:, None] * self._kx
+        out[:, 1] = c.amp
+        out[:, 2] = c.k
+        out[:, 3] = self._kx
+        out[:, 4] = np.inf if self.depth is None else self.depth
+        if self._shallow:
+            xs = self._tab_x
+            sh = x < xs[-1]
+            if sh.any():
+                f = (np.maximum(x[sh], xs[0]) - xs[0]) / (xs[1] - xs[0])
+                i = np.minimum(f.astype(np.intp), len(xs) - 2)
+                w = (f - i)[:, None, None]
+                out[sh] = self._tab[i] * (1.0 - w) + self._tab[i + 1] * w
+        return out
 
     # ---------------------------------------------------------------- 공용 계산
-    def _spatial(self, x: np.ndarray, y: np.ndarray):
-        """위치로만 정해지는 부분: 위상 A (N,n), 진폭 (N,n) 또는 (n,), 원래 shape."""
+    def _spatial(self, x: np.ndarray, y: np.ndarray, want_k: bool = False):
+        """위치로만 정해지는 부분: 위상 A (N,n), 진폭 (N,n) 또는 (n,), 원래 shape [, 표 전체]."""
         x, y = np.broadcast_arrays(np.asarray(x, dtype=float), np.asarray(y, dtype=float))
         shape = x.shape
         xf, yf = x.reshape(-1), y.reshape(-1)
         c = self.comp
-        if self._shallow:
-            sx, amp = self._shallow_lookup(xf)
+        if self._shallow or want_k:
+            tab = self._lookup(xf)
+            sx, amp = tab[:, 0], tab[:, 1]
         else:
-            sx, amp = xf[:, None] * self._kx, c.amp
-        return sx + yf[:, None] * self._ky + c.phase, amp, shape
+            tab, sx, amp = None, xf[:, None] * self._kx, c.amp
+        a0 = sx + yf[:, None] * self._ky + c.phase
+        return (a0, amp, shape, tab) if want_k else (a0, amp, shape)
 
     def elevation(self, x: np.ndarray, y: np.ndarray, t: float) -> np.ndarray:
         """수면 높이 η [m]. x, y 는 같은 shape(또는 브로드캐스트 가능), 결과도 그 shape."""
@@ -132,12 +146,33 @@ class WaveField:
         return np.sum(amp * np.cos(a0 - self.comp.omega * t), axis=-1).reshape(shape)
 
     def velocity(self, x: np.ndarray, y: np.ndarray, z: np.ndarray, t: float) -> np.ndarray:
-        raise NotImplementedError("2단계 전에 구현")
+        """물 입자 속도 (u, v, w) [m/s], 결과 shape = x.shape + (3,).
+
+        파도가 지나가면 물은 제자리에서 원(깊은 물)·타원(얕은 물)을 그리며 돈다.
+        마루에서는 파도 진행 방향으로, 골에서는 반대로 움직이고, 깊이 갈수록 약해진다.
+        z > 0 (정지 수면 위, 마루 속) 은 z = 0 값으로 쓴다 (단순 근사).
+        """
+        x, y, z = np.broadcast_arrays(*(np.asarray(v, dtype=float) for v in (x, y, z)))
+        shape = x.shape
+        zf = np.minimum(z.reshape(-1), 0.0)[:, None]
+        a0, amp, _, tab = self._spatial(x, y, want_k=True)
+        k, kx, h = tab[:, 2], tab[:, 3], tab[:, 4]
+        ph = a0 - self.comp.omega * t
+        aw = amp * self.comp.omega
+        deep = k * h > 20.0                                    # h = inf 도 여기 포함
+        hh = np.where(deep, 1.0, h)
+        zc = np.maximum(zf, -hh)                               # 바닥 아래로는 안 내려감
+        with np.errstate(over="ignore", invalid="ignore"):
+            fh = np.where(deep, np.exp(k * zc), np.cosh(k * (zc + hh)) / np.sinh(k * hh))
+            fv = np.where(deep, np.exp(k * zc), np.sinh(k * (zc + hh)) / np.sinh(k * hh))
+        uh = aw * fh * np.cos(ph) / np.maximum(k, 1e-12)
+        out = np.stack([np.sum(uh * kx, -1), np.sum(uh * self._ky, -1), np.sum(aw * fv * np.sin(ph), -1)], -1)
+        return out.reshape(shape + (3,))
 
     def max_elevation(self) -> float:
         """이론상 가능한 최대 |η| = 모든 성분파 마루가 한 점에 겹칠 때 = Σ a_i (얕은 물 포함)."""
         if self._shallow:
-            return float(np.max(np.sum(self._tab_amp, axis=1)))
+            return float(np.max(np.sum(self._tab[:, 1], axis=1)))
         return float(np.sum(self.comp.amp))
 
     def fixed_points(self, x: np.ndarray, y: np.ndarray) -> "FixedPointElevation":
