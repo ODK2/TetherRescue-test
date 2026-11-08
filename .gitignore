@@ -18,3 +18,6 @@ log/
 # README 용 영상은 예외
 !docs/*.mp4
 !docs/*.gif
+
+# MuJoCo 경고 로그
+MUJOCO_LOG.TXT
